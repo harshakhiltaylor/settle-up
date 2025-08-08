@@ -6,23 +6,23 @@ import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { useConvexQuery } from "@/hooks/use-convex-query";
 import { BarLoader } from "react-spinners";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, ArrowLeftRight, ArrowLeft } from "lucide-react";
+import { PlusCircle, ArrowLeftRight, ArrowLeft, Users } from "lucide-react";
 import { ExpenseList } from "@/components/expense-list";
 import { SettlementList } from "@/components/settlement-list";
+import { GroupBalances } from "@/components/group-balances";
+import { GroupMembers } from "@/components/group-members";
 
-export default function PersonExpensesPage() {
+export default function GroupExpensesPage() {
   const params = useParams();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("expenses");
 
-  const { data, isLoading } = useConvexQuery(
-    api.expenses.getExpensesBetweenUsers,
-    { userId: params.id }
-  );
+  const { data, isLoading } = useConvexQuery(api.groups.getGroupExpenses, {
+    groupId: params.id,
+  });
 
   if (isLoading) {
     return (
@@ -32,10 +32,12 @@ export default function PersonExpensesPage() {
     );
   }
 
-  const otherUser = data?.otherUser;
+  const group = data?.group;
+  const members = data?.members || [];
   const expenses = data?.expenses || [];
   const settlements = data?.settlements || [];
-  const balance = data?.balance || 0;
+  const balances = data?.balances || [];
+  const userLookupMap = data?.userLookupMap || {};
 
   return (
     <div className="container mx-auto py-6 max-w-4xl">
@@ -52,21 +54,21 @@ export default function PersonExpensesPage() {
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
           <div className="flex items-center gap-3">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={otherUser?.imageUrl} />
-              <AvatarFallback>
-                {otherUser?.name?.charAt(0) || "?"}
-              </AvatarFallback>
-            </Avatar>
+            <div className="bg-primary/10 p-4 rounded-md">
+              <Users className="h-8 w-8 text-primary" />
+            </div>
             <div>
-              <h1 className="text-4xl gradient-title">{otherUser?.name}</h1>
-              <p className="text-muted-foreground">{otherUser?.email}</p>
+              <h1 className="text-4xl gradient-title">{group?.name}</h1>
+              <p className="text-muted-foreground">{group?.description}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {members.length} members
+              </p>
             </div>
           </div>
 
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <Link href={`/settlements/user/${params.id}`}>
+              <Link href={`/settlements/group/${params.id}`}>
                 <ArrowLeftRight className="mr-2 h-4 w-4" />
                 Settle Cash
               </Link>
@@ -81,35 +83,29 @@ export default function PersonExpensesPage() {
         </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xl">Balance</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between items-center">
-            <div>
-              {balance === 0 ? (
-                <p>You are all settled up</p>
-              ) : balance > 0 ? (
-                <p>
-                  <span className="font-medium">{otherUser?.name}</span> owes
-                  you
-                </p>
-              ) : (
-                <p>
-                  You owe <span className="font-medium">{otherUser?.name}</span>
-                </p>
-              )}
-            </div>
-            <div
-              className={`text-2xl font-bold ${balance > 0 ? "text-green-600" : balance < 0 ? "text-red-600" : ""}`}
-            >
-              ${Math.abs(balance).toFixed(2)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">Group Balances</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GroupBalances balances={balances} />
+            </CardContent>
+          </Card>
+        </div>
 
+        <div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">Members</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GroupMembers members={members} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
       <Tabs
         defaultValue="expenses"
         value={activeTab}
@@ -128,16 +124,17 @@ export default function PersonExpensesPage() {
         <TabsContent value="expenses" className="space-y-4">
           <ExpenseList
             expenses={expenses}
-            showOtherPerson={false}
-            otherPersonId={params.id}
-            userLookupMap={{ [otherUser.id]: otherUser }}
+            showOtherPerson={true}
+            isGroupExpense={true}
+            userLookupMap={userLookupMap}
           />
         </TabsContent>
 
         <TabsContent value="settlements" className="space-y-4">
           <SettlementList
             settlements={settlements}
-            userLookupMap={{ [otherUser.id]: otherUser }}
+            isGroupSettlement={true}
+            userLookupMap={userLookupMap}
           />
         </TabsContent>
       </Tabs>
